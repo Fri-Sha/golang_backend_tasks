@@ -17,7 +17,7 @@ type Worker struct {
 }
 
 func NewWorker(db *gorm.DB) *Worker {
-	return &Worker{Db: db, TaskChan: make(chan models.Tasks, MaxWorkers), ExitChan: make(chan bool, MaxWorkers)}
+	return &Worker{Db: db, TaskChan: make(chan models.Tasks, MaxWorkers*10), ExitChan: make(chan bool, MaxWorkers*10)}
 }
 
 func (w *Worker) StartWorker(tasks <-chan models.Tasks, exit chan<- bool, ctx context.Context) {
