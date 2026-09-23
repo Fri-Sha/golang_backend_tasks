@@ -6,7 +6,7 @@
 - make remove: Удаление созданных контейнеров в Докере
 
 # Примеры запросов для тестирования приложения:
-## Создание успешной записи tasks
+## Создание успешной записи tasks:
 ```
 POST localhost:8080/tasks
 Content-Type: application/json
@@ -16,7 +16,7 @@ Content-Type: application/json
 }
 ```
 
-## Создание ошибочной записи tasks (статус будет выставлен как "failed")
+## Создание ошибочной записи tasks (статус будет выставлен как "failed"):
 ```
 POST localhost:8080/tasks
 Content-Type: application/json
@@ -26,16 +26,16 @@ Content-Type: application/json
 }
 ```
 
-## Выбор всех записей из таблицы tasks
+## Выбор всех записей из таблицы tasks:
 ```GET localhost:8080/tasks```
 
-## Выбор только записей из таблицы tasks у которых стоит статус "failed"
+## Выбор только записей из таблицы tasks у которых стоит статус "failed":
 ```GET localhost:8080/tasks?status=failed```
 
-## Выбор записи из таблицы tasks с ID 3
+## Выбор записи из таблицы tasks с ID 3:
 ```GET localhost:8080/tasks/3```
 
-## Удаление записи записи из таблицы tasks с ID 3
+## Удаление записи записи из таблицы tasks с ID 3:
 ```DELETE localhost:8080/tasks/3```
 
 ## Health-check:
