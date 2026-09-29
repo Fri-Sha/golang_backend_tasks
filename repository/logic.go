@@ -1,7 +1,9 @@
 package repository
 
 import (
+	"fmt"
 	"main/models"
+	"unicode/utf8"
 
 	"time"
 )
@@ -22,7 +24,12 @@ func (r *Repository) Create(taskNew models.Tasks) (models.Tasks, error) {
 	task.CreatedAt = time.Now()
 	task.UpdatedAt = time.Now()
 
-	err := transaction.Create(&task).Error
+	err := ValidateTask(task, true)
+	if err != nil {
+		return task, err
+	}
+
+	err = transaction.Create(&task).Error
 	if err != nil {
 		transaction.Rollback()
 		return task, err
@@ -36,11 +43,6 @@ func (r *Repository) Create(taskNew models.Tasks) (models.Tasks, error) {
 	fullTask, err := r.getFullTask(task.Id)
 	if err != nil {
 		return task, err
-	}
-
-	err = ValidateTask(fullTask)
-	if err != nil {
-		return fullTask, err
 	}
 
 	r.worker.TaskChan <- fullTask
@@ -65,17 +67,17 @@ func (r *Repository) Select(filter models.TaskFilter) ([]models.Tasks, error) {
 	return tasks, nil
 }
 
-func (r *Repository) SelectById(id int) (models.Tasks, error) {
+func (r *Repository) SelectById(id uint64) (models.Tasks, error) {
 	var task models.Tasks
 
-	task.Id = uint64(id)
+	task.Id = id
 
 	fullTask, err := r.getFullTask(task.Id)
 	if err != nil {
 		return task, err
 	}
 
-	err = ValidateTask(fullTask)
+	err = ValidateTask(fullTask, false)
 	if err != nil {
 		return fullTask, err
 	}
@@ -83,7 +85,10 @@ func (r *Repository) SelectById(id int) (models.Tasks, error) {
 	return fullTask, nil
 }
 
-func (r *Repository) DeleteById(id int) error {
+func (r *Repository) DeleteById(id uint64) error {
+	if models.IsTaskInProcess[id] {
+		return fmt.Errorf("Task с ID %d находится в обработке, удаление невозможно", id)
+	}
 
 	err := r.worker.Db.Delete(&models.Tasks{}, id).Error
 	if err != nil {
@@ -122,7 +127,7 @@ func (r *Repository) CheckNewTasks() (error, int) {
 	}
 
 	for _, task := range tasks {
-		if task.Status == models.StatusNew.String() {
+		if task.Status == models.StatusNew.String() || task.Status == models.StatusProcessing.String() {
 			r.worker.TaskChan <- task
 			newCount++
 		}
@@ -131,9 +136,17 @@ func (r *Repository) CheckNewTasks() (error, int) {
 	return nil, newCount
 }
 
-func ValidateTask(task models.Tasks) error {
-	if task.Id <= 0 {
+func ValidateTask(task models.Tasks, new bool) error {
+	if task.Id <= 0 && !new {
 		return ErrInvalidTaskId
+	}
+
+	if task.Title == "" {
+		return ErrTitleEmpty
+	}
+
+	if utf8.RuneCountInString(task.Title) > 50 {
+		return ErrTitleTooLong
 	}
 
 	// if task.Status == models.StatusFailed.String() {

@@ -2,6 +2,7 @@ package tests
 
 import (
 	"log"
+	"os"
 	"strconv"
 	"testing"
 
@@ -23,7 +24,13 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const port = "8080"
+const programPort = "8080"
+const localHost = "localhost"
+const localUser = "postgres"
+const localDbname = "tasks_test"
+const localPass = "postgres"
+const localPort = "8093"
+const localDown = "true"
 
 func TestValidateTask(t *testing.T) {
 	var task models.Tasks
@@ -35,7 +42,7 @@ func TestValidateTask(t *testing.T) {
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	err := repository.ValidateTask(task)
+	err := repository.ValidateTask(task, false)
 	log.Println("Task 1 результат проверки:", err, ", ожидалось:", repository.ErrInvalidTaskId)
 	require.ErrorIs(t, err, repository.ErrInvalidTaskId)
 
@@ -46,7 +53,7 @@ func TestValidateTask(t *testing.T) {
 	// 	CreatedAt: time.Now(),
 	// 	UpdatedAt: time.Now(),
 	// }
-	// err = repository.ValidateTask(task)
+	// err = repository.ValidateTask(task, false)
 	// log.Println("Task 2 результат проверки:", err, ", ожидалось:", ErrTaskFailed)
 	// require.ErrorIs(t, err, repository.ErrTaskFailed)
 
@@ -56,7 +63,7 @@ func TestValidateTask(t *testing.T) {
 		Status:    models.StatusNew.String(),
 		CreatedAt: time.Now(),
 	}
-	err = repository.ValidateTask(task)
+	err = repository.ValidateTask(task, false)
 	log.Println("Task 2 результат проверки:", err, ", ожидалось:", repository.ErrTaskNoTimestamps)
 	require.ErrorIs(t, err, repository.ErrTaskNoTimestamps)
 
@@ -67,20 +74,32 @@ func TestValidateTask(t *testing.T) {
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	err = repository.ValidateTask(task)
+	err = repository.ValidateTask(task, false)
 	log.Println("Task 3 результат проверки:", err, ", ошибки не ожидалось")
 	require.ErrorIs(t, err, nil)
 }
 
 func TestServer(t *testing.T) {
+	dbHost := getEnv("TEST_DB_HOST", localHost)
+	dbPort := getEnv("TEST_DB_PORT", localPort)
+	dbUser := getEnv("TEST_DB_USER", localUser)
+	dbPass := getEnv("TEST_DB_PASSWORD", localPass)
+	dbName := getEnv("TEST_DB_NAME", localDbname)
+	dbDown := getEnv("TEST_DB_DOWN", localDown)
+
+	migrateDown, err := strconv.ParseBool(dbDown)
+	if err != nil {
+		migrateDown = true
+	}
+
 	storage := postgresql.New(postgresql.DBconfig{
-		Host:    "localhost",
-		Port:    "8092",
-		User:    "postgres",
-		Pass:    "postgres",
-		DBName:  "tasks",
+		Host:    dbHost,
+		Port:    dbPort,
+		User:    dbUser,
+		Pass:    dbPass,
+		DBName:  dbName,
 		SSLMode: "disable",
-	}, true)
+	}, migrateDown)
 
 	defer storage.Close()
 
@@ -92,7 +111,7 @@ func TestServer(t *testing.T) {
 	log.Println("Запуск сервера...")
 	srv := new(server.Server)
 	go func() {
-		if err := srv.Run(port, handler.InitRoute()); err != http.ErrServerClosed {
+		if err := srv.Run(programPort, handler.InitRoute()); err != http.ErrServerClosed {
 			log.Fatalf("Возникла ошибка при работе HTTP сервера: %s", err.Error())
 		}
 	}()
@@ -117,14 +136,26 @@ func TestServer(t *testing.T) {
 func TestWorkers(t *testing.T) {
 	var task models.Tasks
 
+	dbHost := getEnv("TEST_DB_HOST", localHost)
+	dbPort := getEnv("TEST_DB_PORT", localPort)
+	dbUser := getEnv("TEST_DB_USER", localUser)
+	dbPass := getEnv("TEST_DB_PASSWORD", localPass)
+	dbName := getEnv("TEST_DB_NAME", localDbname)
+	dbDown := getEnv("TEST_DB_DOWN", localDown)
+
+	migrateDown, err := strconv.ParseBool(dbDown)
+	if err != nil {
+		migrateDown = true
+	}
+
 	storage := postgresql.New(postgresql.DBconfig{
-		Host:    "localhost",
-		Port:    "8092",
-		User:    "postgres",
-		Pass:    "postgres",
-		DBName:  "tasks",
+		Host:    dbHost,
+		Port:    dbPort,
+		User:    dbUser,
+		Pass:    dbPass,
+		DBName:  dbName,
 		SSLMode: "disable",
-	}, false)
+	}, migrateDown)
 
 	defer storage.Close()
 
@@ -139,10 +170,12 @@ func TestWorkers(t *testing.T) {
 		go worker.StartWorker(worker.TaskChan, worker.ExitChan, ctx)
 	}
 
+	models.IsTaskInProcess = make(map[uint64]bool)
+
 	log.Println("Запуск сервера...")
 	srv := new(server.Server)
 	go func() {
-		if err := srv.Run(port, handler.InitRoute()); err != http.ErrServerClosed {
+		if err := srv.Run(programPort, handler.InitRoute()); err != http.ErrServerClosed {
 			log.Fatalf("Возникла ошибка при работе HTTP сервера: %s", err.Error())
 		}
 	}()
@@ -154,7 +187,7 @@ func TestWorkers(t *testing.T) {
 	router.ServeHTTP(res, req)
 	_ = json.Unmarshal(res.Body.Bytes(), &task)
 	taskId1 := task.Id
-	equal := assert.Equal(t, http.StatusOK, res.Code)
+	equal := assert.Equal(t, http.StatusCreated, res.Code)
 	if !equal {
 		log.Println("Ошибка создания task"+strconv.FormatUint(taskId1, 10)+". Response code:", res.Code)
 	} else {
@@ -168,7 +201,7 @@ func TestWorkers(t *testing.T) {
 	router.ServeHTTP(res, req)
 	_ = json.Unmarshal(res.Body.Bytes(), &task)
 	taskId2 := task.Id
-	equal = assert.Equal(t, http.StatusOK, res.Code)
+	equal = assert.Equal(t, http.StatusCreated, res.Code)
 	if !equal {
 		log.Println("Ошибка создания task"+strconv.FormatUint(taskId2, 10)+". Response code:", res.Code)
 	} else {
@@ -182,7 +215,7 @@ func TestWorkers(t *testing.T) {
 	router.ServeHTTP(res, req)
 	_ = json.Unmarshal(res.Body.Bytes(), &task)
 	taskId3 := task.Id
-	equal = assert.Equal(t, http.StatusOK, res.Code)
+	equal = assert.Equal(t, http.StatusCreated, res.Code)
 	if !equal {
 		log.Println("Ошибка создания task "+strconv.FormatUint(taskId3, 10)+". Response code:", res.Code)
 	} else {
@@ -232,4 +265,12 @@ func TestWorkers(t *testing.T) {
 	} else {
 		log.Println("Task "+strconv.FormatUint(taskId3, 10)+" получил правильный статус. Ожидалось: "+models.StatusFailed.String()+", получено:", task.Status)
 	}
+}
+
+func getEnv(key string, defaultValue string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+
+	return defaultValue
 }

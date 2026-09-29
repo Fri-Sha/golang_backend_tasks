@@ -15,6 +15,8 @@ func NewRepository(worker *worker.Worker) *Repository {
 
 var (
 	ErrInvalidTaskId = errors.New("Invalid task ID")
+	ErrTitleEmpty    = errors.New("Empty title")
+	ErrTitleTooLong  = errors.New("Title is too long")
 	// ErrTaskFailed       = errors.New("Task failed")
 	ErrTaskNoTimestamps = errors.New("Task has no timestamps")
 )

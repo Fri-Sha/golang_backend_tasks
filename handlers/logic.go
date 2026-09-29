@@ -21,12 +21,12 @@ func (h *Handler) CreateTask(c *gin.Context) {
 
 	taskResponse, err := h.repository.Create(task)
 	if err != nil {
-		newErrResponse(c, http.StatusInternalServerError, err.Error())
+		newErrResponse(c, http.StatusInternalServerError, "Ошибка создания новой записи в таблицу tasks, текст ошибки: "+err.Error())
 		return
 	}
 
 	log.Println("Создан task с ID: " + strconv.Itoa(int(taskResponse.Id)) + " и статусом: " + taskResponse.Status)
-	c.JSON(http.StatusOK, taskResponse)
+	c.JSON(http.StatusCreated, taskResponse)
 }
 
 func (h *Handler) SelectTasks(c *gin.Context) {
@@ -37,7 +37,7 @@ func (h *Handler) SelectTasks(c *gin.Context) {
 
 	tasks, err := h.repository.Select(filter)
 	if err != nil {
-		newErrResponse(c, http.StatusBadRequest, "Ошибка выбора записей из таблицы tasks")
+		newErrResponse(c, http.StatusNotFound, "Ошибка выбора записей из таблицы tasks, текст ошибки: "+err.Error())
 		return
 	}
 
@@ -53,11 +53,12 @@ func (h *Handler) SelectTaskById(c *gin.Context) {
 	taskId, err := strconv.Atoi(id)
 	if err != nil {
 		newErrResponse(c, http.StatusBadRequest, "Невалидный ID")
+		return
 	}
 
-	task, err := h.repository.SelectById(taskId)
+	task, err := h.repository.SelectById(uint64(taskId))
 	if err != nil {
-		newErrResponse(c, http.StatusBadRequest, "Task с ID "+id+" не был найден")
+		newErrResponse(c, http.StatusNotFound, "Ошибка выбора записи из таблицы tasks с ID "+id+", текст ошибки: "+err.Error())
 		return
 	}
 
@@ -74,11 +75,12 @@ func (h *Handler) DeleteTaskById(c *gin.Context) {
 
 	if err != nil {
 		newErrResponse(c, http.StatusBadRequest, "Невалидный ID")
+		return
 	}
 
-	err = h.repository.DeleteById(taskId)
+	err = h.repository.DeleteById(uint64(taskId))
 	if err != nil {
-		newErrResponse(c, http.StatusInternalServerError, "Ошибка удаления записи "+id)
+		newErrResponse(c, http.StatusInternalServerError, "Ошибка удаления записи "+id+", текст ошибки: "+err.Error())
 		return
 	}
 

@@ -28,13 +28,6 @@ type Storage struct {
 
 var cfgDB DBconfig
 
-const localHost = "localhost"
-const localUser = "postgres"
-const localDbname = "tasks"
-const localPass = "postgres"
-const localSslmode = "disable"
-const localPort = "8092"
-
 func New(cfg DBconfig, downMigration bool) *Storage {
 	storagePath := fmt.Sprintf("host=%s user=%s dbname=%s password=%s sslmode=%s port=%s",
 		cfg.Host,
@@ -50,23 +43,7 @@ func New(cfg DBconfig, downMigration bool) *Storage {
 		Logger: logger.Default.LogMode(logger.Info),
 	})
 	if err != nil {
-		// Повторная попытка подключения, возможно пытаемся поднять программу локально
-		storagePath = fmt.Sprintf("host=%s user=%s dbname=%s password=%s sslmode=%s port=%s",
-			localHost,
-			localUser,
-			localDbname,
-			localPass,
-			localSslmode,
-			localPort)
-
-		cfgDB = cfg
-
-		gormDB, err = gorm.Open(postgres.Open(storagePath), &gorm.Config{
-			Logger: logger.Default.LogMode(logger.Info),
-		})
-		if err != nil {
-			log.Fatal("Ошибка подключения к базе данных:", err)
-		}
+		log.Fatal("Ошибка подключения к базе данных:", err)
 	}
 
 	sqlDB, _ := gormDB.DB()

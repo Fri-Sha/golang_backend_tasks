@@ -30,7 +30,7 @@ WORKDIR /root/
 
 # Copy the Pre-built binary file from the previous stage. Observe we also copied the .env file
 COPY --from=builder /app/main .
-COPY --from=builder /app/.env.example .
+COPY --from=builder /app/.env .
 
 COPY ./migrations/. /root/migrations/
 

@@ -4,6 +4,7 @@ import (
 	"time"
 )
 
+// Enum для статусов (подаём ID, получаем текст статуса)
 type Status int
 
 const (
@@ -14,10 +15,10 @@ const (
 )
 
 var statusName = map[Status]string{
-	StatusNew:        "new",
-	StatusProcessing: "processing",
-	StatusDone:       "done",
-	StatusFailed:     "failed",
+	StatusNew:        StatusNewString,
+	StatusProcessing: StatusProcessingString,
+	StatusDone:       StatusDoneString,
+	StatusFailed:     StatusFailedString,
 }
 
 func (s Status) String() string {
@@ -34,6 +35,28 @@ func TransitionStatus(s Status) Status {
 		return StatusFailed
 	}
 }
+
+// Map для получения ID из статуса (подаём текст статуса, получаем его ID)
+const (
+	StatusNewString        string = "new"
+	StatusProcessingString string = "processing"
+	StatusDoneString       string = "done"
+	StatusFailedString     string = "failed"
+)
+
+var statusNameString = map[string]Status{
+	StatusNewString:        StatusNew,
+	StatusProcessingString: StatusProcessing,
+	StatusDoneString:       StatusDone,
+	StatusFailedString:     StatusFailed,
+}
+
+func GetStatusId(s string) Status {
+	return statusNameString[s]
+}
+
+// Map для проверки если текущий ID из таблицы tasks обрабатывается
+var IsTaskInProcess map[uint64]bool
 
 type Tasks struct {
 	Id        uint64    `json:"id" gorm:"column:id;primary_key;auto_increment"`

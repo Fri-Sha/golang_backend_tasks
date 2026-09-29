@@ -6,8 +6,10 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"syscall"
 
 	"main/handlers"
+	"main/models"
 	"main/postgresql"
 	"main/repository"
 	"main/server"
@@ -16,20 +18,33 @@ import (
 	"golang.org/x/net/context"
 )
 
-const port = "8080"
+const programPort = "8080"
+const localHost = "localhost"
+const localUser = "postgres"
+const localDbname = "tasks"
+const localPass = "postgres"
+const localPort = "8092"
+const localDown = "false"
 
 func main() {
-	migrateDown, err := strconv.ParseBool(os.Getenv("DB_DOWN"))
+	dbHost := getEnv("DB_HOST", localHost)
+	dbPort := getEnv("DB_PORT", localPort)
+	dbUser := getEnv("DB_USER", localUser)
+	dbPass := getEnv("DB_PASSWORD", localPass)
+	dbName := getEnv("DB_NAME", localDbname)
+	dbDown := getEnv("DB_DOWN", localDown)
+
+	migrateDown, err := strconv.ParseBool(dbDown)
 	if err != nil {
 		migrateDown = false
 	}
 
 	storage := postgresql.New(postgresql.DBconfig{
-		Host:    os.Getenv("DB_HOST"),
-		Port:    os.Getenv("DB_PORT"),
-		User:    os.Getenv("DB_USER"),
-		Pass:    os.Getenv("DB_PASSWORD"),
-		DBName:  os.Getenv("DB_NAME"),
+		Host:    dbHost,
+		Port:    dbPort,
+		User:    dbUser,
+		Pass:    dbPass,
+		DBName:  dbName,
 		SSLMode: "disable",
 	}, migrateDown)
 
@@ -45,14 +60,16 @@ func main() {
 		go worker.StartWorker(worker.TaskChan, worker.ExitChan, ctx)
 	}
 
+	models.IsTaskInProcess = make(map[uint64]bool)
+
 	srv := new(server.Server)
 	go func() {
-		if err := srv.Run(port, handler.InitRoute()); err != http.ErrServerClosed {
+		if err := srv.Run(programPort, handler.InitRoute()); err != http.ErrServerClosed {
 			log.Fatalf("Возникла ошибка при работе HTTP сервера: %s", err.Error())
 		}
 	}()
 
-	log.Println("Сервер поднялся на порту " + port)
+	log.Println("Сервер поднялся на порту " + programPort)
 
 	log.Println("Проверка task со статусом new...")
 	err, newCount := repos.CheckNewTasks()
@@ -63,9 +80,10 @@ func main() {
 	}
 
 	quit := make(chan os.Signal, 1)
-	signal.Notify(quit, os.Interrupt)
-	<-quit
+	signal.Notify(quit, syscall.SIGTERM, syscall.SIGINT)
+	sig := <-quit
 
+	log.Println("Получили сигнал:", sig)
 	log.Println("Выключение сервера...")
 	if err := srv.Shutdown(context.Background()); err != nil {
 		log.Fatalf("Возникла ошибка при выключении сервера: %s", err.Error())
@@ -76,4 +94,14 @@ func main() {
 	for i := 0; i < workerPackage.MaxWorkers; i++ {
 		<-worker.ExitChan
 	}
+
+	log.Println("Выключение программы...")
+}
+
+func getEnv(key string, defaultValue string) string {
+	if value, ok := os.LookupEnv(key); ok {
+		return value
+	}
+
+	return defaultValue
 }

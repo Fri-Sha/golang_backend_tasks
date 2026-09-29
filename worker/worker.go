@@ -30,7 +30,9 @@ func (w *Worker) StartWorker(tasks <-chan models.Tasks, exit chan<- bool, ctx co
 
 		select {
 		case task := <-tasks:
-			w.ChangeState(task, models.StatusNew, false)
+			models.IsTaskInProcess[task.Id] = true
+			w.ChangeState(task, models.GetStatusId(task.Status), false)
+			models.IsTaskInProcess[task.Id] = false
 		case <-ctx.Done():
 			exit <- true
 			return

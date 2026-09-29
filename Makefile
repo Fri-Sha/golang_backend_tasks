@@ -21,6 +21,11 @@ start_app:
 stop_app:
 	docker stop full_app
 
+build-test:
+	docker compose -f docker-compose.test.yml up --build --abort-on-container-exit
+
 remove:
 	docker rm full_db_postgres
 	docker rm full_app
+	docker rm full_db_test_postgres
+	docker rm full_app_test

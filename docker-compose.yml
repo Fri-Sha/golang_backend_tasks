@@ -1,11 +1,12 @@
 version: '3'
 services:
   app:
+    stop_grace_period: 30s # Нужно для graceful shutdown, иначе сразу подаётся SIGKILL
     container_name: full_app
     env_file:
-      - .env.example
+      - .env
     build: .
-    ports: 
+    ports:
       - 8080:8080
     # restart: on-failure
     volumes:
@@ -19,7 +20,7 @@ services:
     image: postgres:latest
     container_name: full_db_postgres
     env_file:
-      - .env.example
+      - .env
     environment:
       - POSTGRES_USER=${DB_USER}
       - POSTGRES_PASSWORD=${DB_PASSWORD}
