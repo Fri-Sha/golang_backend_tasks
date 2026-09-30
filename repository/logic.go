@@ -87,18 +87,16 @@ func (r *Repository) SelectById(id uint64) (models.Tasks, error, int) {
 }
 
 func (r *Repository) DeleteById(id uint64) (error, int) {
-	task, err := r.getFullTask(id)
+	_, err := r.getFullTask(id)
 	if err != nil {
-		return err, http.StatusNotFound
+		return fmt.Errorf("Task с ID %d отсутствует", id), http.StatusNotFound
 	}
 
-	if task.Status == models.StatusProcessing.String() {
-		return fmt.Errorf("Task с ID %d находится в обработке, удаление невозможно", id), http.StatusConflict
-	}
-
-	err = r.worker.Db.Delete(&models.Tasks{}, id).Error
-	if err != nil {
+	result := r.worker.Db.Where("id = ? AND status != ?", id, models.StatusProcessing.String()).Delete(&models.Tasks{}, id)
+	if result.Error != nil {
 		return err, http.StatusInternalServerError
+	} else if result.RowsAffected == 0 {
+		return fmt.Errorf("Task с ID %d находится в обработке, удаление невозможно", id), http.StatusConflict
 	}
 
 	return nil, http.StatusOK

@@ -30,7 +30,7 @@ func (w *Worker) StartWorker(tasks <-chan models.Tasks, exit chan<- bool, ctx co
 
 		select {
 		case task := <-tasks:
-			err := w.StartProcess(task)
+			err := w.StartProcess(&task)
 			if err == nil {
 				w.ChangeState(task, models.GetStatusId(task.Status), false)
 			}

@@ -8,7 +8,7 @@ import (
 	"time"
 )
 
-func (w *Worker) StartProcess(task models.Tasks) error {
+func (w *Worker) StartProcess(task *models.Tasks) error {
 	log.Println("Запускаем обработку task ID: " + fmt.Sprint(task.Id))
 
 	transaction := w.Db.Begin()
@@ -16,14 +16,18 @@ func (w *Worker) StartProcess(task models.Tasks) error {
 	task.Status = models.StatusProcessing.String()
 	task.UpdatedAt = time.Now()
 
-	err := transaction.Save(&task).Error
-	if err != nil {
+	result := transaction.Where("id = ? AND status != ?", task.Id, models.StatusNew.String()).Save(&task)
+	if result.Error != nil {
 		log.Println("Ошибка при обновлении task ID: " + fmt.Sprint(task.Id))
 		transaction.Rollback()
-		return err
+		return result.Error
+	} else if result.RowsAffected == 0 {
+		log.Println("Task ID " + fmt.Sprint(task.Id) + " уже обрабатывается")
+		transaction.Rollback()
+		return fmt.Errorf("Task ID " + fmt.Sprint(task.Id) + " уже обрабатывается")
 	}
 
-	err = transaction.Commit().Error
+	err := transaction.Commit().Error
 	if err != nil {
 		log.Println("Ошибка при коммите task ID: " + fmt.Sprint(task.Id))
 		transaction.Rollback()
