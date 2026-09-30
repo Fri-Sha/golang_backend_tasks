@@ -55,9 +55,6 @@ func GetStatusId(s string) Status {
 	return statusNameString[s]
 }
 
-// Map для проверки если текущий ID из таблицы tasks обрабатывается
-var IsTaskInProcess map[uint64]bool
-
 type Tasks struct {
 	Id        uint64    `json:"id" gorm:"column:id;primary_key;auto_increment"`
 	Title     string    `json:"title" gorm:"column:title"`

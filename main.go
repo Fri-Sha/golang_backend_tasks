@@ -7,9 +7,9 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	"main/handlers"
-	"main/models"
 	"main/postgresql"
 	"main/repository"
 	"main/server"
@@ -60,8 +60,6 @@ func main() {
 		go worker.StartWorker(worker.TaskChan, worker.ExitChan, ctx)
 	}
 
-	models.IsTaskInProcess = make(map[uint64]bool)
-
 	srv := new(server.Server)
 	go func() {
 		if err := srv.Run(programPort, handler.InitRoute()); err != http.ErrServerClosed {
@@ -85,7 +83,9 @@ func main() {
 
 	log.Println("Получили сигнал:", sig)
 	log.Println("Выключение сервера...")
-	if err := srv.Shutdown(context.Background()); err != nil {
+	ctxTimeout, cancelTimeout := context.WithTimeout(context.Background(), time.Duration(time.Second*30))
+	defer cancelTimeout()
+	if err := srv.Shutdown(ctxTimeout); err != nil {
 		log.Fatalf("Возникла ошибка при выключении сервера: %s", err.Error())
 	}
 

@@ -14,6 +14,8 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+const testDB = "tasks_test"
+
 type DBconfig struct {
 	Host    string
 	Port    string
@@ -48,7 +50,7 @@ func New(cfg DBconfig, downMigration bool) *Storage {
 
 	sqlDB, _ := gormDB.DB()
 
-	err = runMigrations(sqlDB, downMigration)
+	err = runMigrations(sqlDB, downMigration, cfg.DBName)
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -65,7 +67,7 @@ func (s *Storage) Close() {
 	_ = sqlDB.Close()
 }
 
-func runMigrations(db *sql.DB, downMigration bool) error {
+func runMigrations(db *sql.DB, downMigration bool, dbName string) error {
 	wd, err := os.Getwd()
 	if err != nil {
 		return fmt.Errorf("Не удалось получить рабочую директорию")
@@ -88,7 +90,7 @@ func runMigrations(db *sql.DB, downMigration bool) error {
 		}
 	}
 
-	if downMigration {
+	if downMigration && dbName == testDB {
 		err = m.Down()
 		if err != nil && err != migrate.ErrNoChange {
 			return fmt.Errorf("Ошибка при выполнении down миграций: %w", err)

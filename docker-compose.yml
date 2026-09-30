@@ -17,7 +17,7 @@ services:
       - fullstack
 
   postgres:
-    image: postgres:latest
+    image: postgres:16
     container_name: full_db_postgres
     env_file:
       - .env

@@ -40,4 +40,4 @@ Content-Type: application/json
 ```DELETE localhost:8080/tasks/3```
 
 ## Health-check:
-```DELETE localhost:8080/health```
+```GET localhost:8080/health```

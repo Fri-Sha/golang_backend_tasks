@@ -19,9 +19,9 @@ func (h *Handler) CreateTask(c *gin.Context) {
 		return
 	}
 
-	taskResponse, err := h.repository.Create(task)
+	taskResponse, err, errCode := h.repository.Create(task)
 	if err != nil {
-		newErrResponse(c, http.StatusInternalServerError, "Ошибка создания новой записи в таблицу tasks, текст ошибки: "+err.Error())
+		newErrResponse(c, errCode, "Ошибка создания новой записи в таблицу tasks, текст ошибки: "+err.Error())
 		return
 	}
 
@@ -35,9 +35,9 @@ func (h *Handler) SelectTasks(c *gin.Context) {
 	status := c.Query("status")
 	filter.Status = status
 
-	tasks, err := h.repository.Select(filter)
+	tasks, err, errCode := h.repository.Select(filter)
 	if err != nil {
-		newErrResponse(c, http.StatusNotFound, "Ошибка выбора записей из таблицы tasks, текст ошибки: "+err.Error())
+		newErrResponse(c, errCode, "Ошибка выбора записей из таблицы tasks, текст ошибки: "+err.Error())
 		return
 	}
 
@@ -56,9 +56,9 @@ func (h *Handler) SelectTaskById(c *gin.Context) {
 		return
 	}
 
-	task, err := h.repository.SelectById(uint64(taskId))
+	task, err, errCode := h.repository.SelectById(uint64(taskId))
 	if err != nil {
-		newErrResponse(c, http.StatusNotFound, "Ошибка выбора записи из таблицы tasks с ID "+id+", текст ошибки: "+err.Error())
+		newErrResponse(c, errCode, "Ошибка выбора записи из таблицы tasks с ID "+id+", текст ошибки: "+err.Error())
 		return
 	}
 
@@ -78,9 +78,9 @@ func (h *Handler) DeleteTaskById(c *gin.Context) {
 		return
 	}
 
-	err = h.repository.DeleteById(uint64(taskId))
+	err, errCode := h.repository.DeleteById(uint64(taskId))
 	if err != nil {
-		newErrResponse(c, http.StatusInternalServerError, "Ошибка удаления записи "+id+", текст ошибки: "+err.Error())
+		newErrResponse(c, errCode, "Ошибка удаления записи "+id+", текст ошибки: "+err.Error())
 		return
 	}
 
@@ -91,12 +91,12 @@ func (h *Handler) DeleteTaskById(c *gin.Context) {
 }
 
 func (h *Handler) Health(c *gin.Context) {
-	err := h.repository.Health()
+	err, errCode := h.repository.Health()
 
 	if err != nil {
 		log.Println("Ошибка подключения к базе данных: " + err.Error())
 
-		c.JSON(http.StatusInternalServerError, gin.H{
+		c.JSON(errCode, gin.H{
 			"status": "Ошибка подключения к базе данных: " + err.Error(),
 		})
 	} else {

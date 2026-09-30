@@ -16,8 +16,8 @@ services:
       - fullstack_test
 
   postgres_test:
-    image: postgres:latest
-    container_name: full_db_test_postgress
+    image: postgres:16
+    container_name: full_db_test_postgres
     env_file:
       - .env
     environment:

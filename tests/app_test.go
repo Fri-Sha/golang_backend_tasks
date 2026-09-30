@@ -42,7 +42,7 @@ func TestValidateTask(t *testing.T) {
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	err := repository.ValidateTask(task, false)
+	err, _ := repository.ValidateTask(task, false)
 	log.Println("Task 1 результат проверки:", err, ", ожидалось:", repository.ErrInvalidTaskId)
 	require.ErrorIs(t, err, repository.ErrInvalidTaskId)
 
@@ -63,7 +63,7 @@ func TestValidateTask(t *testing.T) {
 		Status:    models.StatusNew.String(),
 		CreatedAt: time.Now(),
 	}
-	err = repository.ValidateTask(task, false)
+	err, _ = repository.ValidateTask(task, false)
 	log.Println("Task 2 результат проверки:", err, ", ожидалось:", repository.ErrTaskNoTimestamps)
 	require.ErrorIs(t, err, repository.ErrTaskNoTimestamps)
 
@@ -74,7 +74,7 @@ func TestValidateTask(t *testing.T) {
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	}
-	err = repository.ValidateTask(task, false)
+	err, _ = repository.ValidateTask(task, false)
 	log.Println("Task 3 результат проверки:", err, ", ошибки не ожидалось")
 	require.ErrorIs(t, err, nil)
 }
@@ -128,7 +128,9 @@ func TestServer(t *testing.T) {
 	}
 
 	log.Println("Выключение сервера...")
-	if err := srv.Shutdown(context.Background()); err != nil {
+	ctxTimeout, cancelTimeout := context.WithTimeout(context.Background(), time.Duration(time.Second*30))
+	defer cancelTimeout()
+	if err := srv.Shutdown(ctxTimeout); err != nil {
 		log.Fatalf("Возникла ошибка при выключении сервера: %s", err.Error())
 	}
 }
@@ -169,8 +171,6 @@ func TestWorkers(t *testing.T) {
 	for i := 0; i < workerPackage.MaxWorkers; i++ {
 		go worker.StartWorker(worker.TaskChan, worker.ExitChan, ctx)
 	}
-
-	models.IsTaskInProcess = make(map[uint64]bool)
 
 	log.Println("Запуск сервера...")
 	srv := new(server.Server)
@@ -223,7 +223,9 @@ func TestWorkers(t *testing.T) {
 	}
 
 	log.Println("Выключение сервера...")
-	if err := srv.Shutdown(context.Background()); err != nil {
+	ctxTimeout, cancelTimeout := context.WithTimeout(context.Background(), time.Duration(time.Second*30))
+	defer cancelTimeout()
+	if err := srv.Shutdown(ctxTimeout); err != nil {
 		log.Fatalf("Возникла ошибка при выключении сервера: %s", err.Error())
 	}
 

@@ -3,13 +3,24 @@ package repository
 import (
 	"fmt"
 	"main/models"
+	"net/http"
 	"unicode/utf8"
 
 	"time"
 )
 
-func (r *Repository) Create(taskNew models.Tasks) (models.Tasks, error) {
+func (r *Repository) Create(taskNew models.Tasks) (models.Tasks, error, int) {
 	var task models.Tasks
+
+	task.Title = taskNew.Title
+	task.Status = models.StatusNew.String()
+	task.CreatedAt = time.Now()
+	task.UpdatedAt = time.Now()
+
+	err, errCode := ValidateTask(task, true)
+	if err != nil {
+		return task, err, errCode
+	}
 
 	transaction := r.worker.Db.Begin()
 
@@ -19,38 +30,28 @@ func (r *Repository) Create(taskNew models.Tasks) (models.Tasks, error) {
 		}
 	}()
 
-	task.Title = taskNew.Title
-	task.Status = models.StatusNew.String()
-	task.CreatedAt = time.Now()
-	task.UpdatedAt = time.Now()
-
-	err := ValidateTask(task, true)
-	if err != nil {
-		return task, err
-	}
-
 	err = transaction.Create(&task).Error
 	if err != nil {
 		transaction.Rollback()
-		return task, err
+		return task, err, http.StatusInternalServerError
 	}
 
 	err = transaction.Commit().Error
 	if err != nil {
-		return task, err
+		return task, err, http.StatusInternalServerError
 	}
 
 	fullTask, err := r.getFullTask(task.Id)
 	if err != nil {
-		return task, err
+		return task, err, http.StatusInternalServerError
 	}
 
 	r.worker.TaskChan <- fullTask
 
-	return fullTask, nil
+	return fullTask, nil, http.StatusOK
 }
 
-func (r *Repository) Select(filter models.TaskFilter) ([]models.Tasks, error) {
+func (r *Repository) Select(filter models.TaskFilter) ([]models.Tasks, error, int) {
 	var tasks []models.Tasks
 
 	query := r.worker.Db.Model(&tasks)
@@ -61,49 +62,60 @@ func (r *Repository) Select(filter models.TaskFilter) ([]models.Tasks, error) {
 
 	err := query.Find(&tasks).Error
 	if err != nil {
-		return tasks, err
+		return tasks, err, http.StatusNotFound
 	}
 
-	return tasks, nil
+	return tasks, nil, http.StatusOK
 }
 
-func (r *Repository) SelectById(id uint64) (models.Tasks, error) {
+func (r *Repository) SelectById(id uint64) (models.Tasks, error, int) {
 	var task models.Tasks
 
 	task.Id = id
 
 	fullTask, err := r.getFullTask(task.Id)
 	if err != nil {
-		return task, err
+		return task, err, http.StatusNotFound
 	}
 
-	err = ValidateTask(fullTask, false)
+	err, errCode := ValidateTask(fullTask, false)
 	if err != nil {
-		return fullTask, err
+		return fullTask, err, errCode
 	}
 
-	return fullTask, nil
+	return fullTask, nil, http.StatusOK
 }
 
-func (r *Repository) DeleteById(id uint64) error {
-	if models.IsTaskInProcess[id] {
-		return fmt.Errorf("Task с ID %d находится в обработке, удаление невозможно", id)
-	}
-
-	err := r.worker.Db.Delete(&models.Tasks{}, id).Error
+func (r *Repository) DeleteById(id uint64) (error, int) {
+	task, err := r.getFullTask(id)
 	if err != nil {
-		return err
+		return err, http.StatusNotFound
 	}
 
-	return nil
+	if task.Status == models.StatusProcessing.String() {
+		return fmt.Errorf("Task с ID %d находится в обработке, удаление невозможно", id), http.StatusConflict
+	}
+
+	err = r.worker.Db.Delete(&models.Tasks{}, id).Error
+	if err != nil {
+		return err, http.StatusInternalServerError
+	}
+
+	return nil, http.StatusOK
 }
 
-func (r *Repository) Health() error {
+func (r *Repository) Health() (error, int) {
 	db, err := r.worker.Db.DB()
 	if err != nil {
-		return err
+		return err, http.StatusInternalServerError
 	}
-	return db.Ping()
+
+	err = db.Ping()
+	if err != nil {
+		return err, http.StatusInternalServerError
+	}
+
+	return nil, http.StatusOK
 }
 
 func (r *Repository) getFullTask(id uint64) (models.Tasks, error) {
@@ -136,17 +148,17 @@ func (r *Repository) CheckNewTasks() (error, int) {
 	return nil, newCount
 }
 
-func ValidateTask(task models.Tasks, new bool) error {
+func ValidateTask(task models.Tasks, new bool) (error, int) {
 	if task.Id <= 0 && !new {
-		return ErrInvalidTaskId
+		return ErrInvalidTaskId, http.StatusBadRequest
 	}
 
 	if task.Title == "" {
-		return ErrTitleEmpty
+		return ErrTitleEmpty, http.StatusBadRequest
 	}
 
 	if utf8.RuneCountInString(task.Title) > 50 {
-		return ErrTitleTooLong
+		return ErrTitleTooLong, http.StatusBadRequest
 	}
 
 	// if task.Status == models.StatusFailed.String() {
@@ -154,8 +166,8 @@ func ValidateTask(task models.Tasks, new bool) error {
 	// }
 
 	if task.CreatedAt.Equal((time.Time{})) || task.UpdatedAt.Equal((time.Time{})) {
-		return ErrTaskNoTimestamps
+		return ErrTaskNoTimestamps, http.StatusInternalServerError
 	}
 
-	return nil
+	return nil, http.StatusOK
 }
