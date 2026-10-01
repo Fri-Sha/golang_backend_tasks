@@ -16,7 +16,7 @@ func (w *Worker) StartProcess(task *models.Tasks) error {
 	task.Status = models.StatusProcessing.String()
 	task.UpdatedAt = time.Now()
 
-	result := transaction.Where("id = ? AND status != ?", task.Id, models.StatusNew.String()).Save(&task)
+	result := transaction.Where("id = ? AND status = ?", task.Id, models.StatusNew.String()).Save(&task)
 	if result.Error != nil {
 		log.Println("Ошибка при обновлении task ID: " + fmt.Sprint(task.Id))
 		transaction.Rollback()
